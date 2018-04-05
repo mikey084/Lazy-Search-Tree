@@ -1,0 +1,630 @@
+Assignment_4_lazyDeletionBST
+
+--------------FHlazySearchTree Class ----------------------------------
+
+package Assignment_4_src;
+
+import java.util.NoSuchElementException;
+
+import cs_1c.*;
+
+public class FHlazySearchTree<E extends Comparable< ? super E > >
+implements Cloneable
+{
+	protected int mSize;
+	protected int mSizeHard;
+	protected FHs_treeNode<E> mRoot;
+
+	public FHlazySearchTree() { clear(); }
+	public boolean empty() { return (mSize == 0); }
+	public int size() { return mSize; }
+	public void clear() { mSize = 0; mRoot = null;   }
+	public int showHeight() { return findHeight(mRoot, -1); }
+
+
+	public int sizeHard(){
+		return mSizeHard;
+	}
+
+	public E findMin() 
+	{
+		if (mRoot == null || mSize == 0)
+			throw new NoSuchElementException();
+		return findMin(mRoot).data;
+	}
+
+	public E findMax() 
+	{
+		if (mRoot == null || mSize == 0)
+			throw new NoSuchElementException();
+		return findMax(mRoot).data;
+	}
+
+	public E find( E x )
+	{
+		FHs_treeNode<E> resultNode;
+		resultNode = find(mRoot, x);
+		if (resultNode == null)
+			throw new NoSuchElementException();
+		return resultNode.data;
+	}
+	public boolean contains(E x)  { return find(mRoot, x) != null; }
+
+	public boolean insert( E x )
+	{
+		int oldSize = mSize;
+		mRoot = insert(mRoot, x);
+		return (mSize != oldSize);
+	}
+
+	public boolean remove( E x )
+	{
+		if (mRoot == null){
+			return false;
+		}
+		int oldSize = mSize;
+		removeLazy(mRoot, x);
+		return (mSize != oldSize);
+	}
+
+	public < F extends Traverser<? super E > > 
+	void traverse(F func)
+	{
+		traverse(func, mRoot);
+	}
+
+	public Object clone() throws CloneNotSupportedException
+	{
+		FHlazySearchTree<E> newObject = (FHlazySearchTree<E>)super.clone();
+		newObject.clear();  // can't point to other's data
+
+		newObject.mRoot = cloneSubtree(mRoot);
+		newObject.mSize = mSize;
+
+		return newObject;
+	}
+	public void collectGarbage(){
+		mRoot = collectGarbage(mRoot);
+	}
+
+	// private helper methods ----------------------------------------
+	protected FHs_treeNode<E> findMin( FHs_treeNode<E> root ) 
+	{
+		if (root == null){
+			return null;
+		}
+		//bottom 
+		FHs_treeNode<E> temp = findMin(root.lftChild);
+
+		if (temp != null){
+			return temp;
+		}
+		if (root.deleted){
+			return findMin(root.rtChild);
+		}
+		else{
+			return root;
+		}
+
+	}
+
+	protected FHs_treeNode<E> findMax( FHs_treeNode<E> root ) 
+	{
+		if (root == null){
+			return null;
+		}
+		FHs_treeNode<E> tempNode = findMax(root.rtChild);
+
+		if(tempNode != null){
+			return tempNode;
+		}
+		if (root.deleted){
+			return findMax(root.lftChild);
+		}
+		else{
+			return root;
+		}
+
+	}
+
+
+	protected FHs_treeNode<E> insert( FHs_treeNode<E> root, E x )
+	{
+		int compareResult;  // avoid multiple calls to compareTo()
+
+		if (root == null)
+		{
+			mSize++;
+			mSizeHard++;			
+			return new FHs_treeNode<E>(x, null, null);
+		}
+		compareResult = x.compareTo(root.data); 
+		if ( compareResult < 0 )
+			root.lftChild = insert(root.lftChild, x);
+		else if ( compareResult > 0 )
+			root.rtChild = insert(root.rtChild, x);
+		else if (root.deleted){				//if deleted reset incr size
+			root.deleted = false;
+			mSize++;
+		}
+
+		return root;
+	}
+
+
+
+	protected FHs_treeNode<E> removeHard( FHs_treeNode<E> root, E x  )
+	{
+		if (root.lftChild != null && root.rtChild != null)
+		{
+			FHs_treeNode<E> minRightNode = findMin(root.rtChild);
+			root.data = minRightNode.data;
+			root.deleted = false;
+			root.rtChild = removeHard(root.rtChild, root.data);
+		}
+		else
+		{	
+
+			root =
+					(root.lftChild == null)? root.rtChild : root.lftChild;
+			mSizeHard--;
+		}
+
+		return root;
+	}
+
+	protected void removeLazy(FHs_treeNode<E> root, E x){
+
+		FHs_treeNode<E> temp = find(root,x);
+		if(temp != null && temp.deleted == false){
+			temp.deleted = true;
+			mSize--;
+		}
+	}
+
+	protected FHs_treeNode<E> collectGarbage(FHs_treeNode<E> root){
+		if (root == null){
+			return null;
+		}
+
+		if (root.lftChild != null){
+			root.lftChild = collectGarbage(root.lftChild);
+		}
+		if (root.rtChild != null){
+			root.rtChild = collectGarbage(root.rtChild);
+		}
+		if (root.deleted){
+			root = removeHard(root, root.data);
+		}
+		// traverse and call find to hard remove found node***
+		return root;
+	}
+
+
+	protected <F extends Traverser<? super E>> 
+	void traverse(F func, FHs_treeNode<E> treeNode){
+		if (treeNode == null){
+			return;
+		}
+		traverse(func, treeNode.lftChild);
+		if (treeNode.deleted == false){
+			func.visit(treeNode.data);
+		}
+		traverse(func, treeNode.rtChild);
+
+	}
+	protected FHs_treeNode<E> find( FHs_treeNode<E> root, E x )
+	{
+		int compareResult;  // avoid multiple calls to compareTo()
+
+		if (root == null)
+			return null;
+
+		compareResult = x.compareTo(root.data); 
+		if (compareResult < 0)
+			return find(root.lftChild, x);
+		if (compareResult > 0)
+			return find(root.rtChild, x);
+		return root;   // found
+	}
+
+	protected FHs_treeNode<E> cloneSubtree(FHs_treeNode<E> root)
+	{
+
+		FHs_treeNode<E> newNode;
+		if (root == null)
+			return null;
+
+		// does not set myRoot which must be done by caller
+		newNode = new FHs_treeNode<E>
+		(
+				root.data, 
+				cloneSubtree(root.lftChild), 
+				cloneSubtree(root.rtChild)
+				);
+		return newNode;
+	}
+
+	protected int findHeight( FHs_treeNode<E> treeNode, int height ) 
+	{
+		int leftHeight, rightHeight;
+		if (treeNode == null)
+			return height;
+		height++;
+		leftHeight = findHeight(treeNode.lftChild, height);
+		rightHeight = findHeight(treeNode.rtChild, height);
+		return (leftHeight > rightHeight)? leftHeight : rightHeight;
+	}
+}
+class FHs_treeNode<E extends Comparable< ? super E > >
+{
+	// use public access so the tree or other classes can access members 
+	public FHs_treeNode<E> lftChild, rtChild;
+	public E data;
+	public FHs_treeNode<E> myRoot;  // needed to test for certain error
+	public boolean deleted;
+
+	public FHs_treeNode( E d, FHs_treeNode<E> lft, FHs_treeNode<E> rt )
+	{
+		lftChild = lft; 
+		rtChild = rt;
+		data = d;
+		deleted = false;
+	}
+
+	public FHs_treeNode()
+	{
+		this(null, null, null);
+	}
+
+	// function stubs -- for use only with AVL Trees when we extend
+	public int getHeight() { return 0; }
+	boolean setHeight(int height) { return true; }
+}
+
+--------------FHs_treeNode Class ----------------------------------------
+
+package cs_1c;
+
+public class FHs_treeNode<E extends Comparable< ? super E > >
+{
+   // use public access so the tree or other classes can access members 
+   public FHs_treeNode<E> lftChild, rtChild;
+   public E data;
+   public FHs_treeNode<E> myRoot;  // needed to test for certain error
+
+   public FHs_treeNode( E d, FHs_treeNode<E> lft, FHs_treeNode<E> rt )
+   {
+      lftChild = lft; 
+      rtChild = rt;
+      data = d;
+   }
+   
+   public FHs_treeNode()
+   {
+      this(null, null, null);
+   }
+   
+   // function stubs -- for use only with AVL Trees when we extend
+   public int getHeight() { return 0; }
+   boolean setHeight(int height) { return true; }
+}
+
+--------------FootHill Class with Main Method ------------------------------
+
+package Assignment_4_src;
+// CIS 1C Assignment #4
+// Instructor Solution Client
+
+import java.util.NoSuchElementException;
+
+import cs_1c.*;
+
+class PrintObject<E> implements Traverser<E>
+{
+	public void visit(E x)
+	{
+		System.out.print( x + " ");
+	}
+};
+
+//------------------------------------------------------
+public class Foothill
+{
+	// -------  main --------------
+	public static void main(String[] args) throws Exception
+	{
+		int k;
+		FHlazySearchTree<Integer> searchTree = new FHlazySearchTree<Integer>();
+		PrintObject<Integer> intPrinter = new PrintObject<Integer>();
+
+		searchTree.traverse(intPrinter);
+
+		System.out.println( "\ninitial size: " + searchTree.size() );
+		searchTree.insert(50);
+		searchTree.insert(20);
+		searchTree.insert(30);
+		searchTree.insert(70);
+		searchTree.insert(10);
+		searchTree.insert(60);
+		searchTree.insert(100);
+		System.out.println("searchTree min 10 : " + searchTree.findMin());
+		System.out.println("searchTree max 100 : " + searchTree.findMax());
+
+		System.out.println( "After populating -- traversal and sizes: ");
+		searchTree.traverse(intPrinter);
+		System.out.println( "\ntree 1 size: " + searchTree.size() 
+		+ "  Hard size: " + searchTree.sizeHard() );
+
+		System.out.println( "Collecting garbage on new tree - should be " +
+				"no garbage." );
+		searchTree.collectGarbage();
+		System.out.println( "tree 1 size: " + searchTree.size() 
+		+ "  Hard size: " + searchTree.sizeHard() );
+
+		// test assignment operator
+		FHlazySearchTree<Integer> searchTree2 
+		= (FHlazySearchTree<Integer>)searchTree.clone();
+
+		System.out.println( "\n\nAttempting 1 removal: ");
+		if (searchTree.remove(20))
+			System.out.println( "removed " + 20 );
+		System.out.println( "tree 1 size: " + searchTree.size() 
+		+ "  Hard size: " + searchTree.sizeHard() );
+
+		System.out.println( "Collecting Garbage - should clean 1 item. " );
+		searchTree.collectGarbage();
+		System.out.println( "tree 1 size: " + searchTree.size() 
+		+ "  Hard size: " + searchTree.sizeHard() );
+
+		System.out.println( "Collecting Garbage again - no change expected. " );
+		searchTree.collectGarbage();
+		System.out.println( "tree 1 size: " + searchTree.size() 
+		+ "  Hard size: " + searchTree.sizeHard() );
+
+		// test soft insertion and deletion:
+
+		System.out.println( "Adding 'hard' 22 - should see new sizes. " );
+		searchTree.insert(22);
+		searchTree.traverse(intPrinter);
+		System.out.println( "\ntree 1 size: " + searchTree.size() 
+		+ "  Hard size: " + searchTree.sizeHard() );
+
+		System.out.println( "\nAfter soft removal. " );
+		searchTree.remove(22);
+		searchTree.traverse(intPrinter);
+		System.out.println( "\ntree 1 size: " + searchTree.size() 
+		+ "  Hard size: " + searchTree.sizeHard() );
+
+		System.out.println( "Repeating soft removal. Should see no change. " );
+		searchTree.remove(22);
+		searchTree.traverse(intPrinter);
+		System.out.println( "\ntree 1 size: " + searchTree.size() 
+		+ "  Hard size: " + searchTree.sizeHard() );
+
+		System.out.println( "Soft insertion. Hard size should not change. " );
+		searchTree.insert(22);
+		searchTree.traverse(intPrinter);
+		System.out.println( "\ntree 1 size: " + searchTree.size() 
+		+ "  Hard size: " + searchTree.sizeHard() );
+
+		System.out.println( "\n\nAttempting 100 removals: " );
+		for (k = 100; k > 0; k--)
+		{
+			if (searchTree.remove(k))
+				System.out.println( "removed " + k );
+		}
+		searchTree.collectGarbage();
+
+		System.out.println( "\nsearch_tree now:");
+		searchTree.traverse(intPrinter);
+		System.out.println( "\ntree 1 size: " + searchTree.size() 
+		+ "  Hard size: " + searchTree.sizeHard() );
+
+		searchTree2.insert(500);
+		searchTree2.insert(200);
+		searchTree2.insert(300);
+		searchTree2.insert(700);
+		searchTree2.insert(100);
+		searchTree2.insert(600);
+		searchTree2.remove(700);
+
+		System.out.println(
+				"SearchTree2 findMax removed 700 : " + searchTree2.findMax());
+		System.out.println(
+				"SearchTree2 findMin removed 700 : " + searchTree2.findMin());
+
+
+		//		System.out.println(searchTree2.sizeHard());
+		//		System.out.println(searchTree2.size());
+		System.out.println("SearchTree2 Max : " + searchTree2.findMax());
+		System.out.println("SearchTree2 Min : " + searchTree2.findMin());
+		System.out.println( "\nsearchTree2:\n" );
+
+		searchTree2.traverse(intPrinter);
+
+		System.out.println( "\ntree 2 size: " + searchTree2.size() 
+		+ "  Hard size: " + searchTree2.sizeHard() );
+
+		System.out.println("Removing 10");
+		searchTree2.remove(10);
+		System.out.println("Garbage Collecting");
+		searchTree2.collectGarbage();
+		System.out.println("post remove hard size: " + searchTree2.sizeHard());
+		System.out.println(
+				"post garbage collect remove size: " + searchTree2.size());
+		System.out.println("Post remove 10 tree: " );
+		searchTree2.traverse(intPrinter);
+		System.out.println();
+
+		System.out.println(""
+				+ "Post remove min should equal 20 : " + searchTree2.findMin());
+		searchTree2.traverse(intPrinter);
+
+		System.out.println();
+		searchTree2.remove(600);
+		searchTree2.remove(500);
+		searchTree2.remove(300);
+		searchTree2.remove(200);
+		searchTree2.remove(100);
+		searchTree2.remove(70);
+		searchTree2.remove(60);
+		searchTree2.remove(50);
+		searchTree2.remove(30);
+		System.out.println("Size should be 1 : " + searchTree2.size());
+		System.out.println(
+				"Min last remaining node 20 : " + searchTree2.findMin());
+		System.out.println(
+				"Max last remaining node 20 : " + searchTree2.findMax());
+
+
+		FHlazySearchTree<Integer> searchTree3 
+		= (FHlazySearchTree<Integer>)searchTree.clone();
+		searchTree3.traverse(intPrinter);
+		System.out.println("Cloning empty searchTree with all nodes removed");
+		System.out.println("Now findMin findMax on hard removed empty tree \n");
+		System.out.println(
+				"Tree hard size mSizeHard : " + searchTree3.sizeHard());
+
+		try{
+			System.out.println(searchTree3.findMax());
+		}
+		catch(NoSuchElementException e){
+			System.out.println("Exception caught can't findMax on empty Tree!");
+		}
+
+		try{
+			System.out.println(searchTree3.findMin());
+		}
+		catch(NoSuchElementException e){
+			System.out.println("Exception caught can't findMax on empty Tree!");
+		}
+
+		System.out.println("Now findMin findMax on soft removed nodes: ");
+		searchTree3.insert(100);
+		searchTree3.insert(200);
+		searchTree3.insert(300);
+		System.out.println("Search 3 Max : " + searchTree3.findMax());
+		System.out.println("Search 3 Min : " + searchTree3.findMin());
+		searchTree3.insert(400);
+		System.out.println("Inserting 400 : ");
+		System.out.println("SearchTree new max: " + searchTree3.findMax());
+		System.out.println("Removing 100 : ");
+		searchTree3.remove(100);
+		System.out.println("SearchTree new min: " + searchTree3.findMin());
+
+		searchTree3.remove(200);
+		searchTree3.remove(300);
+		searchTree3.remove(400);
+		System.out.println("Tree soft size mSize : " + searchTree3.mSize);
+		try{
+			searchTree3.findMax();
+		}
+		catch(NoSuchElementException e){
+			System.out.println("Exception caught can't findMax on empty Tree!");
+		}
+		try{
+			searchTree3.findMin();
+		}
+		catch(NoSuchElementException e){
+			System.out.println("Exception caught can't findMin on empty Tree!");
+		}
+		
+		System.out.println("searchTree3 adding duplicate items: \n");
+		searchTree3.insert(100);
+		searchTree3.insert(100);
+		searchTree3.insert(100);
+		searchTree3.insert(100);
+		System.out.println("SearchTree 3 : \n");
+		searchTree3.traverse(intPrinter);
+
+	}
+}
+
+----------------------Part A Output Run -----------------------------------
+
+initial size: 0
+searchTree min 10 : 10
+searchTree max 100 : 100
+After populating -- traversal and sizes: 
+10 20 30 50 60 70 100 
+tree 1 size: 7  Hard size: 7
+Collecting garbage on new tree - should be no garbage.
+tree 1 size: 7  Hard size: 7
+
+
+Attempting 1 removal: 
+removed 20
+tree 1 size: 6  Hard size: 7
+Collecting Garbage - should clean 1 item. 
+tree 1 size: 6  Hard size: 6
+Collecting Garbage again - no change expected. 
+tree 1 size: 6  Hard size: 6
+Adding 'hard' 22 - should see new sizes. 
+10 22 30 50 60 70 100 
+tree 1 size: 7  Hard size: 7
+
+After soft removal. 
+10 30 50 60 70 100 
+tree 1 size: 6  Hard size: 7
+Repeating soft removal. Should see no change. 
+10 30 50 60 70 100 
+tree 1 size: 6  Hard size: 7
+Soft insertion. Hard size should not change. 
+10 22 30 50 60 70 100 
+tree 1 size: 7  Hard size: 7
+
+
+Attempting 100 removals: 
+removed 100
+removed 70
+removed 60
+removed 50
+removed 30
+removed 22
+removed 10
+
+search_tree now:
+
+tree 1 size: 0  Hard size: 0
+SearchTree2 findMax removed 700 : 600
+SearchTree2 findMin removed 700 : 10
+SearchTree2 Max : 600
+SearchTree2 Min : 10
+
+searchTree2:
+
+10 20 30 50 60 70 100 200 300 500 600 
+tree 2 size: 11  Hard size: 12
+Removing 10
+Garbage Collecting
+post remove hard size: 10
+post garbage collect remove size: 10
+Post remove 10 tree: 
+20 30 50 60 70 100 200 300 500 600 
+Post remove min should equal 20 : 20
+20 30 50 60 70 100 200 300 500 600 
+Size should be 1 : 1
+Min last remaining node 20 : 20
+Max last remaining node 20 : 20
+Cloning empty searchTree with all nodes removed
+Now findMin findMax on hard removed empty tree 
+
+Tree hard size mSizeHard : 0
+Exception caught can't findMax on empty Tree!
+Exception caught can't findMax on empty Tree!
+Now findMin findMax on soft removed nodes: 
+Search 3 Max : 300
+Search 3 Min : 100
+Inserting 400 : 
+SearchTree new max: 400
+Removing 100 : 
+SearchTree new min: 200
+Tree soft size mSize : 0
+Exception caught can't findMax on empty Tree!
+Exception caught can't findMin on empty Tree!
+searchTree3 adding duplicate items: 
+
+SearchTree 3 : 
+
+100 
